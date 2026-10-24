@@ -1,0 +1,30 @@
+# 构建产物
+*.exe
+*.zip
+!docs/*.zip
+
+# 日志
+logs/
+*.log
+
+# 依赖
+node_modules/
+lib/*.dll
+
+# 参考
+refs/
+fonts/
+llonebot/
+napcat/
+
+# 配置（含密钥）
+patch.yml
+logs/api-store.json
+.env
+credentials*
+*.bak*
+
+# 临时
+*.tmp
+.DS_Store
+Thumbs.db
