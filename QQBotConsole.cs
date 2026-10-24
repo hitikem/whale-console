@@ -115,7 +115,24 @@ public static bool ReadBool(string jsonFile, string key)
             try
             {
                 Directory.CreateDirectory(Cfg.LOGDIR);
-                File.AppendAllText(Path.Combine(Cfg.LOGDIR, "console.log"),
+                var path = Path.Combine(Cfg.LOGDIR, "console.log");
+
+                // 超过 1MB 就截断，只保留最后 2000 行
+                try
+                {
+                    var fi = new FileInfo(path);
+                    if (fi.Exists && fi.Length > 1024 * 1024)
+                    {
+                        var keep = File.ReadAllLines(path);
+                        var tail = keep.Length > 2000
+                            ? keep.Skip(keep.Length - 2000).ToArray()
+                            : keep;
+                        File.WriteAllLines(path, tail, new UTF8Encoding(false));
+                    }
+                }
+                catch { }
+
+                File.AppendAllText(path,
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + s + "\r\n");
             }
             catch { }
@@ -198,16 +215,68 @@ public static bool ReadBool(string jsonFile, string key)
         public static uint[] Pids()
         {
             var l = new List<uint>();
+
+            // 方案A：读 autostart.log 最新的 PID 并验证存活
             try
             {
-                var o = RunPS("Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -like '*bin.js*' -and $_.CommandLine -like '*qqbot*' } | ForEach-Object { $_.ProcessId }");
-                foreach (var s in o.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                var logPath = Path.Combine(Cfg.QQBOT, "autostart.log");
+                if (File.Exists(logPath))
                 {
-                    uint id;
-                    if (uint.TryParse(s.Trim(), out id)) l.Add(id);
+                    var lines = File.ReadAllLines(logPath, Encoding.UTF8);
+                    for (int i = lines.Length - 1; i >= 0; i--)
+                    {
+                        var m = Regex.Match(lines[i], @"qqbot launched, pid (\d+)");
+                        if (!m.Success) continue;
+                        uint pid = uint.Parse(m.Groups[1].Value);
+                        try
+                        {
+                            var p = Process.GetProcessById((int)pid);
+                            if (!p.HasExited) { l.Add(pid); return l.ToArray(); }
+                        }
+                        catch { }
+                        break;
+                    }
                 }
             }
             catch { }
+
+            // 方案B：WMI 查命令行匹配 whale/qqbot
+            try
+            {
+                using (var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name = 'node.exe'"))
+                {
+                    foreach (System.Management.ManagementObject mo in searcher.Get())
+                    {
+                        var cl = Convert.ToString(mo["CommandLine"]) ?? "";
+                        if (cl.IndexOf("--profile whale", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                            cl.IndexOf("--profile qqbot", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            l.Add(Convert.ToUInt32(mo["ProcessId"]));
+                        }
+                    }
+                }
+                if (l.Count > 0) return l.ToArray();
+            }
+            catch { }
+
+            // 方案C：进程特征（内存 > 60MB 且线程 >= 8，排除已知的 MCP 进程）
+            try
+            {
+                foreach (var p in Process.GetProcessesByName("node"))
+                {
+                    try
+                    {
+                        if (p.HasExited) continue;
+                        if (p.Id == Process.GetCurrentProcess().Id) continue;
+                        if (p.WorkingSet64 > 60L * 1024 * 1024 && p.Threads.Count >= 8)
+                            l.Add((uint)p.Id);
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
             return l.ToArray();
         }
 
@@ -313,7 +382,28 @@ public static bool ReadBool(string jsonFile, string key)
         public static async Task<(bool ok, string msg, string detail)> Restart()
         {
             var a = await Stop();
-            await Task.Delay(1500);
+
+            // 等旧进程完全退出 + cordis.yml 释放（最多 20 秒）
+            var cordis = @"C:\Users\Administrator\.dsh\qqbot-home\profiles\whale\cordis.yml";
+            for (int i = 0; i < 20; i++)
+            {
+                await Task.Delay(1000);
+                try
+                {
+                    if (File.Exists(cordis))
+                    {
+                        using (var fs = File.Open(cordis, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                        {
+                            fs.Close();
+                        }
+                        Log("Restart: cordis.yml 已释放（等了 " + (i + 1) + " 秒）");
+                        break;
+                    }
+                    else break;
+                }
+                catch { }
+            }
+
             var b = await Start();
             return (a.ok && b.ok, "重启完成: " + b.msg, a.detail + "\n---\n" + b.detail);
         }
@@ -783,7 +873,9 @@ public static bool ReadBool(string jsonFile, string key)
                 var py = Path.Combine(Cfg.QQBOT, "tools", "collect-chat.py");
                 if (!File.Exists(py)) return;
 
-                var psi = new ProcessStartInfo("python.exe", "\"" + py + "\"")
+                // 用 cmd /c set 设环境变量，避免 EnvironmentVariables 大小写冲突
+                var psi = new ProcessStartInfo("cmd.exe",
+                    "/c \"set PYTHONIOENCODING=utf-8 && python.exe \"" + py + "\"\"")
                 {
                     UseShellExecute = false,
                     CreateNoWindow = true,
@@ -792,7 +884,6 @@ public static bool ReadBool(string jsonFile, string key)
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
-                psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
 
                 using (var p = Process.Start(psi))
                 {
@@ -1182,6 +1273,22 @@ public static bool ReadBool(string jsonFile, string key)
             }
             catch { appIcon = SystemIcons.Application; }
 
+            // ── 窗口与任务栏图标：必须显式指定 ──
+            // 不设的话任务栏会退回系统默认图标（彩色方块），和 exe 图标不一致
+            try
+            {
+                var asmIcon = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var si = asmIcon.GetManifestResourceStream("app.ico"))
+                {
+                    if (si != null) Icon = new Icon(si, 256, 256);
+                }
+                if (Icon == null) Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            }
+            catch
+            {
+                try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+            }
+
             tray = new NotifyIcon
             {
                 Icon = appIcon,
@@ -1265,11 +1372,38 @@ public static bool ReadBool(string jsonFile, string key)
                         }
                         catch { }
                     }
-                    // 机器人
-                    if (Backend.Pids().Length == 0)
+                    // 机器人：多重确认后才启动（避免误判导致重复启动）
+                    var pids = Backend.Pids();
+                    bool reallyDown = pids.Length == 0;
+
+                    // 二次确认：读 status.json 最近 60 秒内是否报告 bot=true
+                    if (reallyDown)
                     {
-                        Backend.Log("AUTO: 机器人未运行，启动中");
+                        try
+                        {
+                            var sj = Path.Combine(Cfg.LOGDIR, "status.json");
+                            if (File.Exists(sj) &&
+                                (DateTime.Now - File.GetLastWriteTime(sj)).TotalSeconds < 60)
+                            {
+                                var t = File.ReadAllText(sj, Encoding.UTF8);
+                                if (t.IndexOf("\"bot\":true", StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    reallyDown = false;
+                                    Backend.Log("AUTO: status.json 显示机器人存活，跳过启动");
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (reallyDown)
+                    {
+                        Backend.Log("AUTO: 机器人确实未运行，启动中");
                         await Backend.Start();
+                    }
+                    else
+                    {
+                        Backend.Log("AUTO: 机器人已在运行，跳过");
                     }
                 }
                 catch (Exception ex) { Backend.Log("AUTO ERR: " + ex.Message); }
@@ -1291,6 +1425,7 @@ public static bool ReadBool(string jsonFile, string key)
         bool _dragging;
         Point _dragOrigin;
         Point _winOrigin;
+        volatile bool _petHold;   // 前端报告"正按住桌宠/浮层"，此时冻结窗口拖动
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         static extern short GetAsyncKeyState(int vKey);
@@ -1309,6 +1444,18 @@ public static bool ReadBool(string jsonFile, string key)
                 POINT cur;
                 GetCursorPos(out cur);
                 bool down = (GetAsyncKeyState(0x01) & 0x8000) != 0;
+
+                // 前端正按住桌宠：立刻冻结窗口拖动并回位，避免抢事件
+                if (_petHold)
+                {
+                    if (!down) _petHold = false;   // 左键已松开：自动解除，防止卡死
+                    if (_dragging)
+                    {
+                        _dragging = false;
+                        Location = _winOrigin;
+                    }
+                    return;
+                }
 
                 if (!_dragging)
                 {
@@ -1355,6 +1502,11 @@ public static bool ReadBool(string jsonFile, string key)
                 int within = rel % 43;
                 if (within < 40 && idx < 11) return false;
             }
+            // 前端上报的浮层（桌宠、气泡、右键菜单）不参与窗口拖动
+            for (int i = 0; i < _noDragRects.Count; i++)
+            {
+                if (_noDragRects[i].Contains(pt)) return false;
+            }
             return true;
         }
 
@@ -1391,7 +1543,17 @@ public static bool ReadBool(string jsonFile, string key)
                         if (within < 40 && idx < 11) inControl = true;
                     }
 
-                    // 3) 其余全部可拖动（包括卡片、空白处）
+                    // 3) 前端上报的浮层（桌宠、右键菜单等）不可拖动
+                    if (!inControl && _noDragRects.Count > 0)
+                    {
+                        foreach (var r in _noDragRects)
+                        {
+                            if (r.Contains(pt)) { inControl = true; break; }
+                        }
+                    }
+
+                    // 诊断：命中失败时记录坐标（节流 300ms）
+                    // 4) 其余全部可拖动（包括卡片、空白处）
                     if (!inControl)
                     {
                         m.Result = (IntPtr)HTCAPTION;
@@ -1715,6 +1877,11 @@ public static bool ReadBool(string jsonFile, string key)
                         json = "{\"ok\":true}";
                         break;
 
+                    case "pethold":
+                        _petHold = qs["on"] == "1";
+                        json = "{\"ok\":true}";
+                        break;
+
                     case "api/status":
                         // 纯读文件，绝不触发采集 —— 采集由计划任务每 1 分钟跑
                         json = Backend.ReadStatusJson();
@@ -2019,6 +2186,26 @@ public static bool ReadBool(string jsonFile, string key)
         [STAThread]
         static void Main()
         {
+            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            {
+                try { File.AppendAllText(@"D:\ds\qqbot\logs\crash.log",
+                    DateTime.Now.ToString("HH:mm:ss") + " UNHANDLED: " + e.ExceptionObject + "\r\n"); }
+                catch { }
+            };
+            TaskScheduler.UnobservedTaskException += (s, e) =>
+            {
+                try { File.AppendAllText(@"D:\ds\qqbot\logs\crash.log",
+                    DateTime.Now.ToString("HH:mm:ss") + " TASK: " + e.Exception + "\r\n"); }
+                catch { }
+                e.SetObserved();
+            };
+            Application.ThreadException += (s, e) =>
+            {
+                try { File.AppendAllText(@"D:\ds\qqbot\logs\crash.log",
+                    DateTime.Now.ToString("HH:mm:ss") + " UI: " + e.Exception + "\r\n"); }
+                catch { }
+            };
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             try
             {
                 // WebView2 需要 STAThread + DPI 感知

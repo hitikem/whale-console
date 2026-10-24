@@ -25,8 +25,8 @@
 | 控制台 | 4928 | `D:\ds\qqbot\QQBotConsole.exe` | ✓ 运行中 |
 
 **QQ 机器人：**
-- AppID: `1905876919`
-- 连接状态：`[im-qqbot] Bot ready! appId=1905876919`
+- AppID: `（已脱敏，见本机 D:\ds\qqbot 的 DSH profile 配置）`
+- 连接状态：`[im-qqbot] Bot ready! appId=<你的 AppID>`
 - 人设：鲸鱼娘「溟月」（控制台守护者）
 
 ---
@@ -321,7 +321,7 @@ Copy-Item D:\ds\qqbot\src\*.cs D:\whale-repo\ -Force
 Copy-Item D:\ds\qqbot\ui\* D:\whale-repo\ui\ -Force
 
 # 2. 检查密钥泄露（必做！）
-Select-String -Path (Get-ChildItem D:\whale-repo -Recurse -File) -Pattern 'sk-a2a-|sk-6b4d|sk-2f7e|UJ9zqib'
+Select-String -Path (Get-ChildItem D:\whale-repo -Recurse -File) -Pattern 'sk-'
 
 # 3. 推送
 cd D:\whale-repo
@@ -338,7 +338,7 @@ gh release create v1.0.1 'D:\WhaleConsole-Setup.exe' 'D:\WhaleConsole-Portable.z
 **每次同步源码前必查**，因为本地源码有真密钥，仓库里是环境变量版：
 
 ```powershell
-$hits = Select-String -Path (Get-ChildItem 'D:\whale-repo' -Recurse -File) -Pattern 'sk-a2a-|sk-6b4d|sk-2f7e|UJ9zqib|8e8448c2'
+$hits = Select-String -Path (Get-ChildItem 'D:\whale-repo' -Recurse -File) -Pattern 'sk-'
 if($hits){ $hits | ForEach-Object { "泄露: $($_.Filename):$($_.LineNumber)" } }
 ```
 

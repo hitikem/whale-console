@@ -81,12 +81,12 @@ namespace QQBotConsole
                                 var tp = Process.GetProcessById((int)tryPid);
                                 if (!tp.HasExited) { botPid = tryPid; }
                             }
-                            catch { Diag("autostart pid " + tryPid + " 已死"); }
+                            catch { }
                             break;
                         }
                     }
                 }
-                catch (Exception ex) { Diag("log ERR: " + ex.Message); }
+                catch (Exception ex) { }
 
                 // 方案B：WMI（沙箱内可能返回空集）
                 if (botPid == 0)
@@ -108,7 +108,7 @@ namespace QQBotConsole
                             }
                         }
                     }
-                    catch (Exception ex) { Diag("WMI ERR: " + ex.Message); }
+                    catch (Exception ex) { }
                 }
 
                 // 方案C：进程特征（内存 > 80MB 且线程 >= 8）
@@ -123,7 +123,6 @@ namespace QQBotConsole
                                 if (pp.WorkingSet64 > 80L * 1024 * 1024 && pp.Threads.Count >= 8)
                                 {
                                     botPid = (uint)pp.Id;
-                                    Diag("fallback PID " + pp.Id);
                                     break;
                                 }
                             }
@@ -132,8 +131,6 @@ namespace QQBotConsole
                     }
                     catch { }
                 }
-
-                Diag("botPid=" + botPid);
 
                 if (botPid > 0)
                 {
@@ -159,7 +156,7 @@ namespace QQBotConsole
                     catch { }
                 }
             }
-            catch (Exception ex) { Diag("BOT ERR: " + ex.Message); }
+            catch (Exception ex) { }
 
             // ── 系统内存 ──
             try
@@ -241,17 +238,7 @@ namespace QQBotConsole
             return sb.ToString();
         }
 
-        static void Diag(string msg)
-        {
-            try
-            {
-                var p = @"D:\ds\qqbot\logs\collect-diag.log";
-                System.IO.File.AppendAllText(p,
-                    DateTime.Now.ToString("HH:mm:ss") + " " + msg + "\r\n");
-            }
-            catch { }
-        }
-
+        
         static string Esc(string v)
         {
             if (v == null) return "";

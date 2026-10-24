@@ -307,28 +307,28 @@ function renderSessDist(sessions) {
 // ═══════════════════════════════════════════════════════════════════
 
 const PROVIDERS = {
-  deepseek: { name: 'DeepSeek', icon: '🐳', baseUrl: 'https://api.deepseek.com',
+  deepseek: { name: 'DeepSeek', icon: '../assets/icons/vendor/deepseek-glyph-24.png', logo: '../assets/icons/vendor/deepseek-tile-38.png', baseUrl: 'https://api.deepseek.com',
     models: ['deepseek-v4-pro', 'deepseek-flash', 'deepseek-chat', 'deepseek-reasoner'],
     keyHint: 'sk-...', docs: 'https://platform.deepseek.com/api_keys' },
-  openai: { name: 'OpenAI', icon: '⚫', baseUrl: 'https://api.openai.com',
+  openai: { name: 'OpenAI', icon: '../assets/icons/vendor/openai-glyph-24.png', logo: '../assets/icons/vendor/openai-tile-38.png', baseUrl: 'https://api.openai.com',
     models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini'],
     keyHint: 'sk-...', docs: 'https://platform.openai.com/api-keys' },
-  anthropic: { name: 'Anthropic', icon: '🅰', baseUrl: 'https://api.anthropic.com',
+  anthropic: { name: 'Anthropic', icon: '../assets/icons/vendor/anthropic-glyph-24.png', logo: '../assets/icons/vendor/anthropic-tile-38.png', baseUrl: 'https://api.anthropic.com',
     models: ['claude-sonnet-4-20250514', 'claude-opus-4-20250514', 'claude-3-5-haiku-20241022'],
     keyHint: 'sk-ant-...', docs: 'https://console.anthropic.com/settings/keys' },
-  moonshot: { name: '月之暗面 Kimi', icon: '🌙', baseUrl: 'https://api.moonshot.cn',
+  moonshot: { name: '月之暗面 Kimi', icon: '../assets/icons/vendor/moonshot-glyph-24.png', logo: '../assets/icons/vendor/moonshot-tile-38.png', baseUrl: 'https://api.moonshot.cn',
     models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k', 'kimi-k2-0711-preview'],
     keyHint: 'sk-...', docs: 'https://platform.moonshot.cn/console/api-keys' },
-  zhipu: { name: '智谱 GLM', icon: '🧠', baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+  zhipu: { name: '智谱 GLM', icon: '../assets/icons/vendor/zhipu-glyph-24.png', logo: '../assets/icons/vendor/zhipu-tile-38.png', baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     models: ['glm-4-plus', 'glm-4-0520', 'glm-4-air', 'glm-4-flash'],
     keyHint: 'xxxx.xxxx', docs: 'https://bigmodel.cn/usercenter/apikeys' },
-  qwen: { name: '阿里通义千问', icon: '☁', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  qwen: { name: '阿里通义千问', icon: '../assets/icons/vendor/qwen-glyph-24.png', logo: '../assets/icons/vendor/qwen-tile-38.png', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long'],
     keyHint: 'sk-...', docs: 'https://dashscope.console.aliyun.com/apiKey' },
-  siliconflow: { name: '硅基流动', icon: '🌊', baseUrl: 'https://api.siliconflow.cn/v1',
+  siliconflow: { name: '硅基流动', icon: '../assets/icons/vendor/siliconflow-glyph-24.png', logo: '../assets/icons/vendor/siliconflow-tile-38.png', baseUrl: 'https://api.siliconflow.cn/v1',
     models: ['deepseek-ai/DeepSeek-V3', 'Qwen/Qwen2.5-72B-Instruct'],
     keyHint: 'sk-...', docs: 'https://cloud.siliconflow.cn/account/ak' },
-  custom: { name: '自定义 / 本地', icon: '⚙', baseUrl: 'http://127.0.0.1:8080/v1',
+  custom: { name: '自定义 / 本地', icon: '../assets/icons/vendor/custom-glyph-24.png', logo: '../assets/icons/vendor/custom-tile-38.png', baseUrl: 'http://127.0.0.1:8080/v1',
     models: [], keyHint: '可留空', docs: '' }
 };
 
@@ -405,7 +405,7 @@ function renderProviderGrid() {
   g.innerHTML = Object.entries(PROVIDERS).map(([k, v]) =>
     `<button class="provider-item${k === 'deepseek' ? ' active' : ''}" data-provider="${k}"
       onclick="selectProvider('${k}')">
-      <span class="pi-icon">${v.icon}</span>
+      <span class="pi-icon"><img src="${v.icon}" alt=""></span>
       <span class="pi-name">${v.name}</span>
     </button>`).join('');
 }
@@ -501,13 +501,14 @@ async function loadApis() {
   }
 
   box.innerHTML = r.apis.map(a => {
-    let icon = '⚙';
+    let icon = '../assets/icons/vendor/custom-glyph-24.png';
+    let logo = '../assets/icons/vendor/custom-tile-38.png';
     for (const k in PROVIDERS) {
       const v = PROVIDERS[k];
-      if (v.baseUrl && a.baseUrl && a.baseUrl.indexOf(v.baseUrl.replace(/\/v1\/?$/, '')) === 0) { icon = v.icon; break; }
+      if (v.baseUrl && a.baseUrl && a.baseUrl.indexOf(v.baseUrl.replace(/\/v1\/?$/, '')) === 0) { icon = v.icon; logo = v.logo; break; }
     }
     return `<div class="api-card">
-      <div class="api-card-icon">${icon}</div>
+      <div class="api-card-icon has-img"><img src="${logo}" alt=""></div>
       <div class="api-card-body">
         <div class="api-card-name">${a.name}${a.isDefault ? ' <span class="badge-default">默认</span>' : ''}</div>
         <div class="api-card-meta">
