@@ -19,7 +19,7 @@ namespace QQBotConsole
 {
     // ============================================================
     //  QQ Bot 控制台 — WebView2 宿主
-    //  前端：HTML/CSS（仿 Agent2API oklch 设计规范）
+    //  前端：HTML/CSS（Apple 液态玻璃设计语言）
     //  后端：真实系统命令 + 三行日志验证
     // ============================================================
 
@@ -32,7 +32,7 @@ namespace QQBotConsole
         public const string NODE = @"C:\Program Files\nodejs\node.exe";
         public const string DSH_JS = @"C:\Users\Administrator\AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\lib\bin.js";
         public const string GATEWAY = @"C:\Program Files\Agent2API\agent2api.exe";
-        public static readonly string GW_KEY = Environment.GetEnvironmentVariable("WHALE_GW_KEY") ?? "";
+        public const string GW_KEY = "sk-a2a-1c6d2d1382646d26b50fa44f8bc94ba8";
         public static readonly string CLASH_KEY = Environment.GetEnvironmentVariable("CLASH_SECRET") ?? "";
         public const string PYTHON = "python";
         public static readonly string CHAT_PY = Path.Combine(QQBOT, "tools", "collect-chat.py");
@@ -837,7 +837,7 @@ public static bool ReadBool(string jsonFile, string key)
             {
                 _apis.Add(new ApiEntry
                 {
-                    name = "Agent2API 本地网关",
+                    name = "AI 网关",
                     baseUrl = Cfg.GW_BASE,
                     apiKey = Cfg.GW_KEY,
                     model = "deepseek-v4.1-flash",
@@ -1007,7 +1007,7 @@ public static bool ReadBool(string jsonFile, string key)
             sw.Restart();
             bool gw = GatewayAlive();
             sw.Stop();
-            add("网关进程", gw, sw.ElapsedMilliseconds, gw ? "Agent2API 运行中" : "未运行");
+            add("网关进程", gw, sw.ElapsedMilliseconds, gw ? "AI 网关运行中" : "未运行");
 
             // 4 网关接口
             sw.Restart();
