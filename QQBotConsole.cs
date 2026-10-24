@@ -32,7 +32,7 @@ namespace QQBotConsole
         public const string NODE = @"C:\Program Files\nodejs\node.exe";
         public const string DSH_JS = @"C:\Users\Administrator\AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\lib\bin.js";
         public const string GATEWAY = @"C:\Program Files\Agent2API\agent2api.exe";
-        public static readonly string GW_KEY = Environment.GetEnvironmentVariable("WHALE_GW_KEY") ?? "";
+        public const string GW_KEY = "sk-a2a-1c6d2d1382646d26b50fa44f8bc94ba8";
         public static readonly string CLASH_KEY = Environment.GetEnvironmentVariable("CLASH_SECRET") ?? "";
         public const string PYTHON = "python";
         public static readonly string CHAT_PY = Path.Combine(QQBOT, "tools", "collect-chat.py");
