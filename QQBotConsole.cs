@@ -32,7 +32,7 @@ namespace QQBotConsole
         public const string NODE = @"C:\Program Files\nodejs\node.exe";
         public const string DSH_JS = @"C:\Users\Administrator\AppData\Roaming\npm\node_modules\@deepseek-ai\dsh\lib\bin.js";
         public const string GATEWAY = @"C:\Program Files\Agent2API\agent2api.exe";
-        public static readonly string GW_KEY = Environment.GetEnvironmentVariable("WHALE_GW_KEY") ?? "";
+        public const string GW_KEY = "sk-a2a-1c6d2d1382646d26b50fa44f8bc94ba8";
         public static readonly string CLASH_KEY = Environment.GetEnvironmentVariable("CLASH_SECRET") ?? "";
         public const string PYTHON = "python";
         public static readonly string CHAT_PY = Path.Combine(QQBOT, "tools", "collect-chat.py");
@@ -775,6 +775,34 @@ public static bool ReadBool(string jsonFile, string key)
             catch { }
         }
 
+        /// <summary>后台采集聊天记录（不阻塞 UI）</summary>
+        public static void ChatCollectAsync()
+        {
+            try
+            {
+                var py = Path.Combine(Cfg.QQBOT, "tools", "collect-chat.py");
+                if (!File.Exists(py)) return;
+
+                var psi = new ProcessStartInfo("python.exe", "\"" + py + "\"")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    WorkingDirectory = Cfg.QQBOT,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                psi.EnvironmentVariables["PYTHONIOENCODING"] = "utf-8";
+
+                using (var p = Process.Start(psi))
+                {
+                    p.StandardOutput.ReadToEnd();
+                    p.WaitForExit(60000);
+                }
+            }
+            catch (Exception ex) { Log("ChatCollect ERR: " + ex.Message); }
+        }
+
         /// <summary>读聊天数据 JSON</summary>
         public static string ReadChatJson()
         {
@@ -1116,6 +1144,7 @@ public static bool ReadBool(string jsonFile, string key)
         NotifyIcon tray;
         Icon appIcon;
         Timer autoTimer;
+        Timer _chatTimer;
 
         public MainForm()
         {
@@ -1182,17 +1211,30 @@ public static bool ReadBool(string jsonFile, string key)
             autoTimer = new Timer { Interval = 3000 };
             autoTimer.Tick += (s, e) =>
             {
-                // 用线程池跑，UI 线程立刻返回
                 System.Threading.ThreadPool.QueueUserWorkItem(_ =>
                 {
-                    try
-                    {
-                        Backend.CollectNowSync();   // 纯 C#，无子进程，毫秒级
-                    }
-                    catch { }
+                    try { Backend.CollectNowSync(); } catch { }
                 });
             };
             autoTimer.Start();
+
+            // 每 90 秒采集一次聊天记录（后台线程）
+            _chatTimer = new Timer { Interval = 90000 };
+            var _chatTickCount = 0;
+            _chatTimer.Tick += (s, e) =>
+            {
+                _chatTickCount++;
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try { Backend.ChatCollectAsync(); } catch { }
+                });
+            };
+            _chatTimer.Start();
+            // 启动时先采集一次
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try { Backend.ChatCollectAsync(); } catch { }
+            });
 
             InitManualDrag();
             ApplyRoundedRegion();
